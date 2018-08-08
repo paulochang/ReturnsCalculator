@@ -13,6 +13,10 @@ namespace ConsoleApp.SQLite
         public DbSet<StockMinuteReturn> MinuteReturns { get; set; }
         public DbSet<StockDailyReturn> DailyReturns { get; set; }
         public DbSet<StockHourlyReturn> HourlyReturns { get; set; }
+        public DbSet<PortfolioPriceRecord> PortfolioPriceRecords { get; set; }
+        public DbSet<PortfolioMinuteReturn> PortfolioMinuteReturns { get; set; }
+        public DbSet<PortfolioDailyReturn> PortfolioDailyReturns { get; set; }
+        public DbSet<PortfolioHourlyReturn> PortfolioHourlyReturns { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

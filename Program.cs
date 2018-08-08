@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace ConsoleApp.SQLite
 {
@@ -11,9 +10,14 @@ namespace ConsoleApp.SQLite
         {
             using (var db = new PortfolioContext())
             {
-                CreateAndPopulateTables(db);
-                UpdateReturnTables(db);
-                db.SaveChanges();
+                //CreateAndPopulateTables(db);
+                //UpdateMinuteReturnTables(db);
+                //UpdateHourlyReturnTables(db);
+                //UpdateDailyReturnTables(db);
+                //UpdatePortfolioPriceRecords(db);
+                //UpdatePortfolioMinuteReturnTables(db);
+                //UpdatePortfolioHourlyReturnTables(db);
+                //UpdatePortfolioDailyReturnTables(db);
             }
         }
 
@@ -562,11 +566,11 @@ namespace ConsoleApp.SQLite
             db.SaveChanges();
         }
 
-        static void UpdateReturnTables(PortfolioContext db)
+        static void UpdateMinuteReturnTables(PortfolioContext db)
         {
-            foreach (var Stock in db.Stocks)
+            foreach (var stock in db.Stocks)
             {
-                List<StockPriceRecord> priceRecords = Stock.StockPriceRecords.OrderBy(pr => pr.Datetime).ToList();
+                List<StockPriceRecord> priceRecords = db.PriceRecords.Where(pr => pr.StockId == stock.StockId).OrderBy(pr => pr.Datetime).ToList();
                 IEnumerable<StockMinuteReturn> mr =
                  priceRecords.Select((pr, index) => new StockMinuteReturn()
                  {
@@ -575,16 +579,145 @@ namespace ConsoleApp.SQLite
                      Return = index > 0 ? pr.Price - priceRecords[index - 1].Price : 0
                  });
 
+                db.MinuteReturns.AddRange(mr);
+            }
+            db.SaveChanges();
+        }
+
+        static void UpdateHourlyReturnTables(PortfolioContext db)
+        {
+            foreach (var stock in db.Stocks)
+            {
+                List<StockPriceRecord> priceRecords = db.PriceRecords.Where(pr => pr.StockId == stock.StockId).OrderBy(pr => pr.Datetime).ToList();
+
                 IEnumerable<StockHourlyReturn> hr =
                  priceRecords.Select((pr, index) => new StockHourlyReturn()
                  {
                      DateTime = pr.Datetime,
                      StockId = pr.StockId,
-                     Return = index > 1 ? pr.Price - priceRecords[index - 2].Price : 0
+                     Return = index > 59 ? pr.Price - priceRecords[index - 60].Price : 0
                  });
 
-                db.MinuteReturns.AddRange(mr);
                 db.HourlyReturns.AddRange(hr);
+            }
+            db.SaveChanges();
+        }
+
+        static void UpdateDailyReturnTables(PortfolioContext db)
+        {
+            foreach (var stock in db.Stocks)
+            {
+                List<StockPriceRecord> priceRecords = db.PriceRecords.Where(pr => pr.StockId == stock.StockId).OrderBy(pr => pr.Datetime).ToList();
+
+                IEnumerable<StockDailyReturn> dr =
+                 priceRecords.Select((pr, index) => new StockDailyReturn()
+                 {
+                     DateTime = pr.Datetime,
+                     StockId = pr.StockId,
+                     Return = index > 1439 ? pr.Price - priceRecords[index - 1440].Price : 0
+                 });
+
+                db.DailyReturns.AddRange(dr);
+            }
+            db.SaveChanges();
+        }
+
+        static void UpdatePortfolioPriceRecords(PortfolioContext db)
+        {
+            //Dictionary by StockId and Datetime to price
+            var priceRecords = db.PriceRecords.ToLookup(pr => new Tuple<int, DateTime>( pr.StockId, pr.Datetime ), pr=> pr.Price);
+            List<DateTime> pricingDates = db.PriceRecords.Select(pr => pr.Datetime).Distinct().ToList();
+
+            foreach (var portfolio in db.Portfolios)
+            {
+                Dictionary<int, int> portfolioAllocations =
+                    db.PortfolioAllocations
+                        .Where(pa => pa.PortfolioId == portfolio.PortfolioId)
+                        .ToDictionary(pa => pa.StockId, pa => pa.Qty);
+
+                List<PortfolioPriceRecord> prdb = new List<PortfolioPriceRecord>();
+
+                foreach (var date in pricingDates)
+                {
+                    double pricingSum = 0;
+                    foreach (var stockid in portfolioAllocations.Keys)
+                    {
+                        pricingSum += 
+                            portfolioAllocations[stockid] 
+                            * priceRecords[new Tuple<int, DateTime>(stockid, date )].FirstOrDefault();
+                    }
+                    prdb.Add(new PortfolioPriceRecord()
+                    {
+                      Datetime = date,
+                      PortfolioId = portfolio.PortfolioId,
+                      Price = pricingSum
+                    });
+                }
+
+                db.PortfolioPriceRecords.AddRange(prdb);
+            }
+            db.SaveChanges();
+
+        }
+
+        static void UpdatePortfolioMinuteReturnTables(PortfolioContext db)
+        {
+            foreach (var portfolio in db.Portfolios)
+            {
+                List<PortfolioPriceRecord> priceRecords = db.PortfolioPriceRecords
+                                                            .Where(pr => pr.PortfolioId == portfolio.PortfolioId)
+                                                            .OrderBy(pr => pr.Datetime).ToList();
+                IEnumerable<PortfolioMinuteReturn> mr =
+                 priceRecords.Select((pr, index) => new PortfolioMinuteReturn()
+                 {
+                     DateTime = pr.Datetime,
+                        PortfolioId = pr.PortfolioId,
+                     Return = index > 0 ? pr.Price - priceRecords[index - 1].Price : 0
+                 });
+
+                db.PortfolioMinuteReturns.AddRange(mr);
+            }
+            db.SaveChanges();
+        }
+
+        static void UpdatePortfolioHourlyReturnTables(PortfolioContext db)
+        {
+            foreach (var portfolio in db.Portfolios)
+            {
+                List<PortfolioPriceRecord> priceRecords = db.PortfolioPriceRecords
+                                                            .Where(pr => pr.PortfolioId == portfolio.PortfolioId)
+                                                            .OrderBy(pr => pr.Datetime).ToList();
+
+                IEnumerable<PortfolioHourlyReturn> hr =
+                 priceRecords.Select((pr, index) => new PortfolioHourlyReturn()
+                 {
+                     DateTime = pr.Datetime,
+                     PortfolioId = pr.PortfolioId,
+                     Return = index > 59 ? pr.Price - priceRecords[index - 60].Price : 0
+                 });
+
+                db.PortfolioHourlyReturns.AddRange(hr);
+            }
+            db.SaveChanges();
+        }
+
+        static void UpdatePortfolioDailyReturnTables(PortfolioContext db)
+        {
+            foreach (var portfolio in db.Portfolios)
+            {
+                List<PortfolioPriceRecord> priceRecords = db.PortfolioPriceRecords
+                                                            .Where(pr => pr.PortfolioId == portfolio.PortfolioId)
+                                                            .OrderBy(pr => pr.Datetime).ToList();
+
+                IEnumerable<PortfolioDailyReturn> dr =
+                 priceRecords.Select((pr, index) => new PortfolioDailyReturn()
+                 {
+                     DateTime = pr.Datetime,
+                     PortfolioId = pr.PortfolioId,
+                     Return = index > 1439 ? pr.Price - priceRecords[index - 1440].Price : 0
+                 });
+
+                db.PortfolioDailyReturns.AddRange(dr);
             }
             db.SaveChanges();
         }
