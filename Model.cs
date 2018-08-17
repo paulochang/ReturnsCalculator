@@ -32,6 +32,7 @@ namespace ConsoleApp.SQLite
     {
         public int PortfolioId { get; set; }
         public string Owner { get; set; }
+        public DateTime LastUpdated { get; set; }
         public ICollection<PortfolioAllocation> PortfolioStocks { get; set; }
 
     }
@@ -41,6 +42,7 @@ namespace ConsoleApp.SQLite
         public int StockId { get; set; }
         public string Name { get; set; }
         public double LatestPrice { get; set; }
+        public DateTime LastUpdated { get; set; }
         public ICollection<PortfolioAllocation> PortfolioAllocations { get; set; }
         public ICollection<StockPriceRecord> StockPriceRecords { get; set; }
         public ICollection<StockMinuteReturn> StockMinuteReturns { get; set; }
